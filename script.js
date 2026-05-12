@@ -9,7 +9,9 @@ class GameScene extends Phaser.Scene {
 
     preload() {
         // Placeholder sounds - replace with your actual files
-        this.load.audio('sword', 'https://labs.phaser.io/assets/audio/SoundEffects/squit.wav');
+        this.load.audio('sword', 'sword.mp3');
+        this.load.audio('hit', 'hit.mp3');
+        this.load.audio('lose', 'lose.mp3');
     }
 
     create() {
@@ -72,46 +74,82 @@ class GameScene extends Phaser.Scene {
     }
 
     handleAttack(pointer) {
-        if (!this.canFire) return;
-        this.canFire = false;
+    if (!this.canFire) return;
+    this.canFire = false;
 
-        // Sound effect
-        this.sound.play('sword', { volume: 0.5 });
+    // 1. Direction & Sound
+    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, pointer.worldX, pointer.worldY);
+    this.sound.play('sword', { volume: 0.4, rate: 1.2 });
 
-        const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, pointer.worldX, pointer.worldY);
+    // 2. Create the Sword Slash Visual
+    const slash = this.add.graphics();
+    slash.setDepth(6); // Above everything
+
+    // Draw a sharp, tapered crescent blade
+    const drawBlade = (alpha, scale) => {
+        slash.clear();
+        slash.fillStyle(0xffffff, alpha); // Core blade
+        slash.lineStyle(3, 0x00ffff, alpha); // Glow edge
         
-        // Slash Visual
-        const arc = this.add.graphics();
-        arc.fillStyle(0x00ffff, 0.3);
-        arc.slice(this.player.x, this.player.y, this.currentWeapon.range, angle - this.currentWeapon.width/2, angle + this.currentWeapon.width/2);
-        arc.fillPath();
+        slash.beginPath();
+        // The "sharp" outer edge of the sword
+        slash.arc(this.player.x, this.player.y, this.currentWeapon.range * scale, angle - 0.8, angle + 0.8);
+        // The "inner" edge that tapers to points at the tips
+        slash.arc(this.player.x, this.player.y, (this.currentWeapon.range - 25) * scale, angle + 0.8, angle - 0.8, true);
+        slash.closePath();
+        slash.fillPath();
+        slash.strokePath();
+    };
 
-        // Hit Detection
-        this.enemies.getChildren().forEach(enemy => {
-            const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
-            const angleToEnemy = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
-            let diff = Math.abs(Phaser.Math.Angle.Wrap(angle - angleToEnemy));
+    drawBlade(1, 1);
 
-            if (dist < this.currentWeapon.range && diff < this.currentWeapon.width / 2) {
-                enemy.destroy();
-                score++;
-                document.getElementById('killCount').innerText = score;
-                
-                // Level Up Check
-                if (score >= 50 && !hasLeveledUp) {
-                    this.triggerLevelUp();
-                }
-            }
-        });
+    // 3. Precise Hit Detection
+    this.enemies.getChildren().forEach(enemy => {
+        if (!enemy) return;
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+        const angleToEnemy = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+        const diff = Math.abs(Phaser.Math.Angle.Wrap(angle - angleToEnemy));
 
-        // Fade Slash
-        this.tweens.add({ targets: arc, alpha: 0, duration: 200, onComplete: () => arc.destroy() });
+        // Only hits enemies within the arc of the sword swing
+        if (dist < this.currentWeapon.range + 15 && diff < 0.9) {
+            // White flash on death
+            const deathPulse = this.add.circle(enemy.x, enemy.y, 15, 0xffffff);
+            this.tweens.add({
+                targets: deathPulse,
+                alpha: 0,
+                scale: 2,
+                duration: 100,
+                onComplete: () => deathPulse.destroy()
+            });
 
-        // Cooldown
-        this.time.delayedCall(this.currentWeapon.reload * this.player.reloadModifier, () => {
-            this.canFire = true;
-        });
-    }
+            enemy.destroy();
+            score++;
+            document.getElementById('killCount').innerText = score;
+            if (score >= 50 && !hasLeveledUp) this.triggerLevelUp();
+        }
+    });
+
+    // 4. Clean Slash Animation (Swift Arc)
+    this.tweens.add({
+        targets: slash,
+        alpha: 0,
+        duration: 200,
+        ease: 'Cubic.easeOut',
+        onUpdate: () => {
+            // This makes the blade "swing" outward slightly as it fades
+            // drawBlade(slash.alpha, 1 + (1 - slash.alpha) * 0.1); 
+        },
+        onComplete: () => slash.destroy()
+    });
+
+    // 5. Minimal Juice (Subtle "Impact" feel)
+    this.cameras.main.shake(50, 0.002); // Much lighter shake
+
+    // 6. Cooldown
+    this.time.delayedCall(this.currentWeapon.reload * this.player.reloadModifier, () => {
+        this.canFire = true;
+    });
+}
 
     spawnEnemy() {
         const spawnAngle = Math.random() * Math.PI * 2;
@@ -125,7 +163,7 @@ class GameScene extends Phaser.Scene {
 
     takeDamage() {
         if (this.player.invulnerable) return;
-        
+        this.sound.play('hit', { volume: 0.5 });
         this.player.hp--;
         this.player.invulnerable = true;
         
@@ -138,10 +176,10 @@ class GameScene extends Phaser.Scene {
             targets: this.player, alpha: 0.2, duration: 100, yoyo: true, repeat: 3,
             onComplete: () => { this.player.invulnerable = false; this.player.alpha = 1; }
         });
-
         if (this.player.hp <= 0) {
             alert("DEFEATED. KILLS: " + score);
             location.reload();
+            this.sound.play('lose', { volume: 0.5 });
         }
     }
 

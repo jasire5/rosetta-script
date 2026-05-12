@@ -6,6 +6,8 @@ body {
     color: #fff;
     /* VT323 is perfect for that 20UTD retro-pixel look */
     font-family: 'VT323', 'Courier New', Courier, monospace;
+    background-image: url("4S3pgS.jpg");
+    background-size: cover;
 }
 
 /* Phaser Canvas Container */
