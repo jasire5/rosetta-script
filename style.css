@@ -129,3 +129,20 @@ button small {
     from { filter: brightness(1) drop-shadow(0 0 2px #f00); }
     to { filter: brightness(1.5) drop-shadow(0 0 15px #f00); }
 }
+#reload-bar-container {
+    position: absolute;
+    width: 40px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid #fff;
+    pointer-events: none;
+    z-index: 5;
+}
+
+#reload-bar-fill {
+    width: 100%;
+    height: 100%;
+    background: #00ffcc; /* Cyan neon look to match your retro style */
+    box-shadow: 0 0 8px #00ffcc;
+    transform-origin: left;
+}
